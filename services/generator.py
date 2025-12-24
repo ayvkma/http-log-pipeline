@@ -22,7 +22,7 @@ class Generator:
         
         for log, timestamp in zip(logs, timestamps):
             log['timestamp'] = timestamp
-            with open(self.file, '+a') as file:
+            with open(self.file, 'a') as file:
                 file.write(json.dumps(log) + '\n')
                 
         

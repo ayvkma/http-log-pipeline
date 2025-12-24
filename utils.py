@@ -1,4 +1,4 @@
-import uuid
+import json
 import random
 from datetime import datetime, timedelta
 from typing import List
@@ -103,9 +103,9 @@ def generate_http_log():
     methods = ['GET', 'POST', 'PUT', 'DELETE']
     method = methods[random.randint(0, len(methods) - 1)]
     
-    get_endpoints = ['/health 200', '/api/tasks/999 200' '/api/tasks/7 200', '/api/tasks 200', '/api/tasks/476 200', '/api/tasks/123 200', '/api/tasks/123 404', '/api/tasks/13 200']
+    get_endpoints = ['/health 200', '/api/tasks/999 404', '/api/tasks/7 200', '/api/tasks 200', '/api/tasks/476 200', '/api/tasks/123 200', '/api/tasks/123 404', '/api/tasks/13 200']
     post_endpoints = ['/api/tasks 201', '/api/tasks 400', '/api/tasks/900 200', '/api/tasks/476 500', '/api/tasks/13 200']
-    put_endpoints = ['/api/tasks/42 200', '/api/tasks/999 404', '/api/tasks/13 400', '/api/tasks/7 500', '/api/tasks/7 200']
+    put_endpoints = ['/api/tasks/42 200', '/api/tasks/13 400', '/api/tasks/7 500', '/api/tasks/7 200']
     delete_endpoints = ['/api/tasks/42 204', '/api/tasks/999 404', '/api/tasks/89 200', '/api/tasks/5 500', '/api/tasks/5 204']
     
     method_to_endpoints = {
@@ -164,13 +164,18 @@ def generate_log(mode):
     :returns: An HTTP log as a dict.
     :rtype: Dict
     """
-    http_request = generate_http_log()
+    http_request = generate_http_log().split()
+    method = http_request[0]
+    endpoint = http_request[1]
+    status_code = http_request[2]
     ip = generate_ip()
     request_duration = generate_request_duration(mode)
     user_agent = generate_user_agent()
 
     log = {
-        "http_request": http_request,
+        "method": method,
+        "endpoint": endpoint,
+        "status_code": status_code,
         "ip": ip,
         "response_time": request_duration,
         "user_agent": user_agent
@@ -221,22 +226,30 @@ def get_worst_window(windows):
     """
     max_failed_reqs = 0
     worst_window = windows[-1]
+    total_reqs = 0
     errors_4xx = 0
     errors_5xx = 0
+    suspicious_ips_in_window = ''
     
     for i in range(len(windows) - 1, 0, -1):
-        total_4xx_errors_in_window = windows[i][1] - windows[i - 1][1]
-        total_5xx_errors_in_window = windows[i][2] - windows[i - 1][2]
+        total_4xx_errors_in_window = int(windows[i][2]) - int(windows[i - 1][2])
+        total_5xx_errors_in_window = int(windows[i][3]) - int(windows[i - 1][3])
+        total_reqs_in_window = int(windows[i][1]) - int(windows[i - 1][1])
+        suspicious_ips = windows[i][4]
         total_failed_reqs_in_window = total_4xx_errors_in_window + total_5xx_errors_in_window
+        
         if total_failed_reqs_in_window > max_failed_reqs:
             worst_window = windows[i][0]
             errors_4xx = total_4xx_errors_in_window
             errors_5xx = total_5xx_errors_in_window
+            total_reqs = total_reqs_in_window
+            suspicious_ips_in_window = suspicious_ips
         
-    if windows[0][1] + windows[0][2] > max_failed_reqs:
-        max_failed_reqs = windows[0][1] + windows[0][2]
+    if int(windows[0][2]) + int(windows[0][3]) > max_failed_reqs:
         worst_window = windows[0][0]
-        errors_4xx = windows[0][1]
-        errors_5xx = windows[0][2]
+        total_reqs = windows[0][1]
+        errors_4xx = windows[0][2]
+        errors_5xx = windows[0][3]
+        suspicious_ips_in_window = suspicious_ips
     
-    return [worst_window, errors_4xx, errors_5xx]
+    return [worst_window, total_reqs, errors_4xx, errors_5xx, suspicious_ips_in_window]
